@@ -1,0 +1,7 @@
+include README.md
+include MANIFEST.in
+include VERSION.txt
+include requirements*.txt
+include tox.ini
+recursive-include syncloud/cf *
+
