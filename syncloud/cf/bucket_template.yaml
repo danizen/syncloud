@@ -1,1 +1,70 @@
+#
+# This template is intended to create an S3 Bucket associated with an SQS Queue which recieves
+# notifications of files written to the bucket.
+#
 ---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Syncloud S3 Bucket and Queue
+
+Parameters:
+  pBucketName:
+    Type: String
+
+  pQueueName:
+    Type: String
+
+  pRetentionPeriod:
+    Type: Number
+    Default: 345600
+
+Resources:
+  rQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref pQueueName
+      MessageRetentionPeriod: !Ref pRetentionPeriod
+      ReceiveMessageWaitTimeSeconds: 20
+      VisibilityTimeout: 30
+
+  rQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - SQS:SendMessage
+            Resource: !Sub "arn:aws:sqs:::${pQueueName}"
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub "arn:aws-cn:s3:*:*:${pBucketName}"
+      Queues:
+        - !Ref rQueue
+
+  rBucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+      - rQueuePolicy
+    Properties:
+      BucketName: !Ref pBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      # NotificationConfiguration:
+      #   QueueConfigurations:
+      #     - Event: s3:ObjectCreated:*
+      #       Queue: !GetAtt rQueue.Arn
+      #     - Event: s3:ObjectRemoved:*
+      #       Queue: !GetAtt rQueue.Arn
+
+Outputs:
+  oQueueUrl:
+    Value: !Ref rQueue
+
+  oQueueArn:
+    Value: !GetAtt rQueue.Arn
+
+  oBucketUrl:
+    Value: !Sub s3://${pBucketName}/
