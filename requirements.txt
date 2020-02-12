@@ -1,3 +1,6 @@
+argh
 boto3
+pathtools
+PyYAML
 watchdog
 

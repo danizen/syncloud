@@ -1,11 +1,10 @@
 import os
 import sys
 from argparse import ArgumentParser
-from pprint import pprint
-from uuid import uuid4
 
-import boto3
-import logging
+from .utils import logger
+from .setup import create_stack, setup_bucket_notification
+
 
 DFLT_BUCKET_NAME = os.environ.get('SYNCLOUD_BUCKET_NAME')
 DFLT_QUEUE_URL = os.environ.get('SYNCLOUD_QUEUE_URL')
@@ -13,84 +12,24 @@ DFLT_TEMPLATE_PATH = os.path.join(
     os.path.dirname(__file__),
     'cf', 'bucket_template.yaml'
 )
-
-logger = logging.getLogger(__name__)
-
-
-def log_result(message, result):
-    logger.info(message)
-    logger.debug(result)
+DFLT_PREFIX = os.environ.get('SYNCLOUD_PREFIX', '')
+DFLT_PATH = os.environ.get('SYNCLOUD_PATH')
+DFLT_INCLUDE = os.environ.get('SYNCLOUD_INCLUDE')
+DFLT_EXCLUDE = os.environ.get('SYNCLOUD_EXCLUDE')
 
 
-def create_stack(template_path, bucket_name, queue_name):
-    stack_name = 'syncloud-' + str(uuid4())
-    with open(template_path, 'r', encoding='UTF-8') as f:
-        template = f.read()
-    parameters = {
-        'pBucketName': bucket_name,
-        'pQueueName': queue_name
-    }
-
-    client = boto3.client('cloudformation')
-    res = client.create_stack(
-        StackName=stack_name,
-        TemplateBody=template,
-        DisableRollback=True,
-        Parameters=[
-            {'ParameterKey': k, 'ParameterValue': v}
-            for k, v in parameters.items()
-        ]
-    )
-    log_result('create_stack', res)
-
-    waiter = client.get_waiter('stack_create_complete')
-    res = waiter.wait(StackName=stack_name)
-    log_result('wait for stack_create_complete', res)
-
-    res = client.describe_stacks(StackName=stack_name)
-    log_result('describe_stacks', res)
-    return res
-
-
-def get_queue_details(queue_name):
-    client = boto3.client('sqs')
-
-    res = client.get_queue_url(QueueName=queue_name)
-    log_result('get_queue_url', res)
-    queue_url = res['QueueUrl']
-
-    res = client.get_queue_attributes(
-        QueueUrl=queue_url,
-        AttributeNames=['QueueArn']
-    )
-    log_result('get_queue_attributes', res)
-    queue_arn = res['Attributes']['QueueArn']
-    return queue_url, queue_arn
-
-
-def setup_bucket_notification(bucket_name, queue_name):
-    queue_url, queue_arn = get_queue_details(queue_name)
-    
-    client = boto3.client('s3')
-    res = client.put_bucket_notification_configuration(
-        Bucket=bucket_name,
-        NotificationConfiguration={
-            'QueueConfigurations': [
-                {
-                    'QueueArn': queue_arn,
-                    'Events': [
-                        's3:ObjectCreated:*',
-                        's3:ObjectRemoved:*'
-                    ]
-                }
-            ]
-        }
-    )
-    log_result('put_bucket_notification_configuration', res)
-    return 0
+def require_opts(opts, *args):
+    for arg in args:
+        value = getattr(opts, arg):
+        if value is None:
+            print('--{} is required'.format(arg), file=sys.stderr)
+            return True
+    return False
 
 
 def create_command(opts):
+    if require_opts(opts, 'template', 'bucket', 'queue'):
+        return 1
     create_stack(opts.template, opts.bucket, opts.queue)
     setup_bucket_notification(opts.bucket, opts.queue)
     print('create completed')
@@ -98,11 +37,15 @@ def create_command(opts):
 
 
 def push_command(opts):
+    if require_opts(opts, 'bucket', 'path'):
+        return 1
     print('push - not yet implemented')
     return 1
 
 
 def pull_command(opts):
+    if require_opts(opts, 'queue', 'bucket', 'path'):
+        return 1
     print('pull - not yet implemented')
     return 1
 
@@ -111,23 +54,47 @@ def create_parser(prog_name):
     # These common options can occur before or after one of the commands
     common = ArgumentParser(add_help=False)                                 
     common.add_argument(
+        '--verbose', '-v',
+        action='count', default=0,
+        help='increase verbosity'
+    )
+    common.add_argument(
         '--bucket', '-b', metavar='NAME',
         default=DFLT_BUCKET_NAME,
         help='specify the bucket name'
     )
     common.add_argument(
-        '--queue', '-q', metavar='URL',
+        '--queue', '-q', metavar='NAME',
         default=DFLT_QUEUE_URL,
-        help='specify the queue url'
+        help='specify the queue NAME'
     )
-    common.add_argument(
-        '--verbose', '-v',
-        action='count', default=0,
-        help='increase verbosity'
+
+
+    # These options apply to the push/pull commands only
+    pushpull = ArgumentParser(add_help=False)
+    pushpull.add_argument(
+        '--path', metavar='PATH',
+        default=DFLT_PATH,
+        help='Local directory path to watch for changes',
+    )
+    pushpull.add_argument(
+        '--prefix', metavar='PREFIX',
+        default=DFLT_PREFIX,
+        help='Prefix to use when accessing S3',
+    )
+    pushpull.add_argument(
+        '--include', metavar='PATTERN', nargs='+',
+        default=DFLT_INCLUDE,
+        help='A regular expression which will be applied to files'
+    )
+    pushpull.add_argument(
+        '--exclude', metavar='PATTERN', nargs='+',
+        default=DFLT_EXCLUDE,
+        help='A regular expression which will be applied to files'
     )
 
     # the parser is organized into sub-parsers (commands)
-    parser = ArgumentParser(prog=prog_name, parents=[common])
+    parser = ArgumentParser(prog=prog_name)
     sp = parser.add_subparsers(title="command(s)")
 
     # setup command
@@ -146,7 +113,7 @@ def create_parser(prog_name):
     # push command
     push = sp.add_parser(
         'push',
-        parents=[common],
+        parents=[common, pushpull],
         help='push local files to the queue'
     )
     push.set_defaults(func=push_command)
@@ -154,7 +121,7 @@ def create_parser(prog_name):
     # pull command
     pull = sp.add_parser(
         'pull',
-        parents=[common],
+        parents=[common, pushpull],
         help='pull changes from the bucket locally'
     )
     pull.set_defaults(func=pull_command)
