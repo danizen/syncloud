@@ -14,7 +14,7 @@ Norconex Collectors use a Job Execution Framework (JEF) to report status and
 collect status. This library makes use of consistent reads and writes to avoid
 any complicated IPC and simply use the filesystem.
 
-This keeps the library generic enough that the consultancy behind these collectors
+This keeps the library generic enough that the consultancy behind Norconex Collectors
 can apply it in their work.
 
 In a cloud central environment, it needs two pieces to enable distributed functionality
@@ -26,17 +26,14 @@ This project is exactly that.
 
 ## syncloud
 
-`syncloud` is the name of the python package inmplemented in this directory, and the command-line
+`syncloud` is the name of the python package inmplemented in this repository, and the command-line
 made available by this package. It supports four sub-command(s):
 
-
- - create - creates an SQS quere and S3 bucket publishing changes to that queue using CloudFormation
- - destroy - deletes the S3 bucket and queue using cloudformation
+ - setup - Creates an SQS quere and S3 bucket publishing changes to that queue using CloudFormation. This is for informational and testing purposes primarily, as a real use-case would probably involve an operations team doing this.
  - push - watches a directory and pushes files created and modified to an S3 bucket with a prefix
  - pull - watches an S3 bucket and pulls file changes from the S3 bucket
 
-
-## Configuration File
+## Configuration
 
 This application will attempt to read its configuration from the following environment variables, 
 but also accepts command-line arguements.
@@ -47,5 +44,3 @@ It may not be appropriate for this library to create/delete the bucket; for very
 
 For convenience, this code includes a cloudFormation template, `syncloud/cf/bucket_template.yaml`,
 which can be customized for different environments.
-
-- 
