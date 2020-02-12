@@ -5,6 +5,7 @@ from pprint import pprint
 from uuid import uuid4
 
 import boto3
+import logging
 
 DFLT_BUCKET_NAME = os.environ.get('SYNCLOUD_BUCKET_NAME')
 DFLT_QUEUE_URL = os.environ.get('SYNCLOUD_QUEUE_URL')
@@ -13,21 +14,21 @@ DFLT_TEMPLATE_PATH = os.path.join(
     'cf', 'bucket_template.yaml'
 )
 
-
-def verbose_result(res):
-    pprint(res, indent=2)
-    sys.stdout.flush()
+logger = logging.getLogger(__name__)
 
 
-def create_command(opts):
-    verbose = opts.verbose
+def log_result(message, result):
+    logger.info(message)
+    logger.debug(result)
+
+
+def create_stack(template_path, bucket_name, queue_name):
     stack_name = 'syncloud-' + str(uuid4())
-
-    with open(opts.template, 'r', encoding='UTF-8') as f:
+    with open(template_path, 'r', encoding='UTF-8') as f:
         template = f.read()
     parameters = {
-        'pBucketName': opts.bucket,
-        'pQueueName': opts.queue
+        'pBucketName': bucket_name,
+        'pQueueName': queue_name
     }
 
     client = boto3.client('cloudformation')
@@ -40,29 +41,39 @@ def create_command(opts):
             for k, v in parameters.items()
         ]
     )
-    if verbose:
-        verbose_result(res)
-    waiter = client.get_waiter('stack_create_complete')
+    log_result('create_stack', res)
 
+    waiter = client.get_waiter('stack_create_complete')
     res = waiter.wait(StackName=stack_name)
-    if verbose:
-        pprint(res, indent=2)
-        sys.stdout.flush()
+    log_result('wait for stack_create_complete', res)
 
     res = client.describe_stacks(StackName=stack_name)
-    if verbose:
-        verbose_result(res)
-    outputs = dict(
-        (o['OutputKey'], o['OutputValue'])
-        for o in res['Stacks'][0]['Outputs']
-    )
-    if verbose:
-        verbose_result(outputs)
-    queue_arn = outputs['oQueueArn']
+    log_result('describe_stacks', res)
+    return res
 
+
+def get_queue_details(queue_name):
+    client = boto3.client('sqs')
+
+    res = client.get_queue_url(QueueName=queue_name)
+    log_result('get_queue_url', res)
+    queue_url = res['QueueUrl']
+
+    res = client.get_queue_attributes(
+        QueueUrl=queue_url,
+        AttributeNames=['QueueArn']
+    )
+    log_result('get_queue_attributes', res)
+    queue_arn = res['Attributes']['QueueArn']
+    return queue_url, queue_arn
+
+
+def setup_bucket_notification(bucket_name, queue_name):
+    queue_url, queue_arn = get_queue_details(queue_name)
+    
     client = boto3.client('s3')
     res = client.put_bucket_notification_configuration(
-        Bucket=opts.bucket,
+        Bucket=bucket_name,
         NotificationConfiguration={
             'QueueConfigurations': [
                 {
@@ -73,10 +84,15 @@ def create_command(opts):
                     ]
                 }
             ]
-        })
-    if verbose:
-        verbose_result(res)
+        }
+    )
+    log_result('put_bucket_notification_configuration', res)
+    return 0
 
+
+def create_command(opts):
+    create_stack(opts.template, opts.bucket, opts.queue)
+    setup_bucket_notification(opts.bucket, opts.queue)
     print('create completed')
     return 0
 
@@ -93,17 +109,19 @@ def pull_command(opts):
 
 def create_parser(prog_name):
     parser = ArgumentParser(prog=prog_name)
-    parser.add_argument(
-        '--bucket', metavar='NAME',
+
+    common = ArgumentParser(add_help=False)                                 
+    common.add_argument(
+        '--bucket', '-b', metavar='NAME',
         default=DFLT_BUCKET_NAME,
         help='specify the bucket name'
     )
-    parser.add_argument(
-        '--queue', metavar='URL',
+    common.add_argument(
+        '--queue', '-q', metavar='URL',
         default=DFLT_QUEUE_URL,
         help='specify the queue url'
     )
-    parser.add_argument(
+    common.add_argument(
         '--verbose', '-v',
         action='count', default=0,
         help='increase verbosity'
@@ -111,7 +129,8 @@ def create_parser(prog_name):
 
     sp = parser.add_subparsers(title="command(s)")
     create = sp.add_parser(
-        'create',
+        'setup',
+        parents=[common],
         help='create bucket and associated queue'
     )
     create.set_defaults(func=create_command)
@@ -123,12 +142,14 @@ def create_parser(prog_name):
 
     push = sp.add_parser(
         'push',
+        parents=[common],
         help='push local files to the queue'
     )
     push.set_defaults(func=push_command)
 
     pull = sp.add_parser(
         'pull',
+        parents=[common],
         help='pull changes from the bucket locally'
     )
     pull.set_defaults(func=pull_command)
@@ -141,10 +162,15 @@ def main_guts(args):
     if not hasattr(opts, 'func'):
         parser.print_help(sys.stderr)
         return 1
+    if opts.verbose == 1:
+        logger.setLevel(logging.INFO)
+    elif opts.verbose > 1:
+        logger.setLevel(logging.DEBUG)
     return opts.func(opts)
 
 
 def main():
+    logging.basicConfig()
     return main_guts(sys.argv)
 
 
