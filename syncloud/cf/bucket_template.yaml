@@ -37,10 +37,10 @@ Resources:
               AWS: '*'
             Action:
               - SQS:SendMessage
-            Resource: !Sub "arn:aws:sqs:::${pQueueName}"
+            Resource: !GetAtt rQueue.Arn
             Condition:
               ArnLike:
-                aws:SourceArn: !Sub "arn:aws-cn:s3:*:*:${pBucketName}"
+                aws:SourceArn: !Sub arn:aws:s3:::${pBucketName}
       Queues:
         - !Ref rQueue
 
@@ -66,5 +66,5 @@ Outputs:
   oQueueArn:
     Value: !GetAtt rQueue.Arn
 
-  oBucketUrl:
-    Value: !Sub s3://${pBucketName}/
+  oBucket:
+    Value: !Ref rBucket
