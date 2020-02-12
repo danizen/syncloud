@@ -108,8 +108,7 @@ def pull_command(opts):
 
 
 def create_parser(prog_name):
-    parser = ArgumentParser(prog=prog_name)
-
+    # These common options can occur before or after one of the commands
     common = ArgumentParser(add_help=False)                                 
     common.add_argument(
         '--bucket', '-b', metavar='NAME',
@@ -127,7 +126,11 @@ def create_parser(prog_name):
         help='increase verbosity'
     )
 
+    # the parser is organized into sub-parsers (commands)
+    parser = ArgumentParser(prog=prog_name, parents=[common])
     sp = parser.add_subparsers(title="command(s)")
+
+    # setup command
     create = sp.add_parser(
         'setup',
         parents=[common],
@@ -140,6 +143,7 @@ def create_parser(prog_name):
         help='Path to the cloudformation template'
     )
 
+    # push command
     push = sp.add_parser(
         'push',
         parents=[common],
@@ -147,6 +151,7 @@ def create_parser(prog_name):
     )
     push.set_defaults(func=push_command)
 
+    # pull command
     pull = sp.add_parser(
         'pull',
         parents=[common],
