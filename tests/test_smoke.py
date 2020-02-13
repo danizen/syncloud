@@ -22,3 +22,10 @@ def test_import_cli():
     assert 'create_parser' in dirmod
     assert 'main' in dirmod
     assert 'main_guts' in dirmod
+
+
+def test_import_boto():
+    mod = import_module('syncloud.boto')
+    dirmod = dir(mod)
+    assert 'BotoClients' in dirmod
+    assert 'boto_clients' in dirmod
