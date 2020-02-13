@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from argparse import ArgumentParser
@@ -20,7 +21,7 @@ DFLT_EXCLUDE = os.environ.get('SYNCLOUD_EXCLUDE')
 
 def require_opts(opts, *args):
     for arg in args:
-        value = getattr(opts, arg):
+        value = getattr(opts, arg)
         if value is None:
             print('--{} is required'.format(arg), file=sys.stderr)
             return True

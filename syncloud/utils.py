@@ -1,3 +1,5 @@
+import logging
+
 import boto3
 
 
@@ -23,4 +25,3 @@ def get_queue_details(queue_name):
     log_result('get_queue_attributes', res)
     queue_arn = res['Attributes']['QueueArn']
     return queue_url, queue_arn
- 
