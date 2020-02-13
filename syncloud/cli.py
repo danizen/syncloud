@@ -53,7 +53,7 @@ def pull_command(opts):
 
 def create_parser(prog_name):
     # These common options can occur before or after one of the commands
-    common = ArgumentParser(add_help=False)                                 
+    common = ArgumentParser(add_help=False)
     common.add_argument(
         '--verbose', '-v',
         action='count', default=0,
@@ -69,7 +69,6 @@ def create_parser(prog_name):
         default=DFLT_QUEUE_URL,
         help='specify the queue NAME'
     )
-
 
     # These options apply to the push/pull commands only
     pushpull = ArgumentParser(add_help=False)
@@ -96,7 +95,7 @@ def create_parser(prog_name):
 
     # the parser is organized into sub-parsers (commands)
     parser = ArgumentParser(prog=prog_name)
-    sp = parser.add_subparsers(title="command(s)")
+    sp = parser.add_subparsers(dest='command', title="command(s)")
 
     # setup command
     create = sp.add_parser(

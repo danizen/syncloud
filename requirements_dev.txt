@@ -2,6 +2,7 @@
 
 pytest
 pytest-cov
+pytest-mock
 tox
 isort
 flake8
