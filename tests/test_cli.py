@@ -5,7 +5,7 @@ from syncloud.cli import create_parser, main_guts
 
 @pytest.fixture
 def parser():
-    return create_parser('hello')
+    return create_parser('syncloud')
 
 
 def test_parse_setup(parser):
