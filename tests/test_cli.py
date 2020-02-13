@@ -2,7 +2,7 @@ from collections.abc import Callable
 import pytest
 from syncloud.cli import create_parser
 
-s
+
 @pytest.fixture
 def parser():
     return create_parser('hello')

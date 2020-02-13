@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import boto3
 
-from .utils import logger, log_result, get_queue_details
+from .utils import log_result, get_queue_details
 
 
 def create_stack(template_path, bucket_name, queue_name):
