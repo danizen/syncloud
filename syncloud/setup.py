@@ -1,7 +1,7 @@
 from uuid import uuid4
 
-import boto3
 
+from .boto import boto_clients
 from .utils import log_result, get_queue_details
 
 
@@ -14,7 +14,7 @@ def create_stack(template_path, bucket_name, queue_name):
         'pQueueName': queue_name
     }
 
-    client = boto3.client('cloudformation')
+    client = boto_clients.cloudformation
     res = client.create_stack(
         StackName=stack_name,
         TemplateBody=template,
@@ -38,7 +38,7 @@ def create_stack(template_path, bucket_name, queue_name):
 def setup_bucket_notification(bucket_name, queue_name):
     queue_url, queue_arn = get_queue_details(queue_name)
 
-    client = boto3.client('s3')
+    client = boto_clients.s3
     res = client.put_bucket_notification_configuration(
         Bucket=bucket_name,
         NotificationConfiguration={
