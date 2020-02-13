@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import pytest
-from syncloud.cli import create_parser
+from syncloud.cli import create_parser, main_guts
 
 
 @pytest.fixture
@@ -51,3 +51,20 @@ def test_parse_pull(parser):
     assert opts.include is None
     assert opts.exclude is None
     assert isinstance(opts.func, Callable)
+
+
+def test_call_setup(mocker):
+    m1 = mocker.patch(
+        'syncloud.cli.create_stack',
+        return_value=0)
+    m2 = mocker.patch(
+        'syncloud.cli.setup_bucket_notification',
+        return_value=0)
+    ret = main_guts([
+        'syncloud', 'setup',
+        '-b', 'test_bucket',
+        '-q', 'test_queue',
+    ])
+    assert m1.call_count == 1
+    assert m2.call_count == 1
+    assert ret == 0
